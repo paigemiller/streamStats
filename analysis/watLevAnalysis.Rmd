@@ -15,7 +15,7 @@ output: html_document
 
 
 ```{r setup, include=FALSE, echo=FALSE}
-knitr::opts_chunk$set(fig.path='figures/', cache=TRUE, 
+knitr::opts_chunk$set(fig.path='watLevFigures/', cache=TRUE, 
                       fig.height = 8, message=FALSE, warning=FALSE, echo=FALSE)
 
 # Load some helpful R packages
@@ -98,11 +98,13 @@ Missing for:
 ```{r loadCondDat}
 
 # read data from analysis.Rmd
-fullDat2 <- read_csv("waterQualStanVars.csv")
+fullDat2 <- read.csv("waterQualStanVars.csv")
 
 ```
 
 ```{r loadStageDat, message=FALSE, warning=FALSE}
+
+setwd("~/Desktop/streamHealth/rawData/stage")
 
 brooklynStage   <- s1  <-  read_csv("Stage_brooklyn.all2.csv") # has water level
 carrStage       <- s2  <-  read_csv("Stage_carr.all2.csv")  # has water level
@@ -498,13 +500,19 @@ _The probes for conductivity and for water level took measurements at 5 minute i
 
 I grouped measurements hourly for now. We might want to do 15 minute intervals, or 20 minutes to see the changes that we want to. How fast do the signals wash away following rain events?
 
+* Answer from Seth & Emily was yes, we should do less than hourly intervals
+
 _Some negative water level values, exclude from analysis?_
 
 For now... we should ignore negative values. That should just mean that the sensor came out of the water at some point.
 
+* This is ok for now
+
 _Should we be accounting for rainfall when calculating ccf between time series?_
 
 Like perhaps studying the response post-rain event separately? Get a list of rain fall in Athens, subset by those days, and study response after that. How would they differ? 
+
+* Perhaps, 
 
 ## Next steps
 

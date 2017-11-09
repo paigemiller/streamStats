@@ -592,5 +592,13 @@ plot(condH, labels=unique(fullDat$name), xlab="Site", main="Normalized conductiv
 
 ```
 
-Again, Brooklyn is an outlier for daily pattern. We see that it was added to the tree last among all other sites daily normalized conductivity. Bear, Trail, and Tanyard were added 2nd, 3rd, and 4th from last indicating they were more different from the other 6 (Shoal, Turkey, Brickyard, McNutt, Carr, and Tallassee) than were the 6 from each other.  
+Again, Brooklyn is an outlier for daily pattern. We see that it was added to the tree last among all other sites daily normalized conductivity. Bear, Trail, and Tanyard were added 2nd, 3rd, and 4th from last indicating they were more different from the other 6 (Shoal, Turkey, Brickyard, McNutt, Carr, and Tallassee) than were the 6 from each other. 
+
+#### Next steps: 
+
+* Look at patterns separated out by season
+
+
+
+
 
