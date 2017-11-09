@@ -1,0 +1,516 @@
+---
+title: 'Analysis: Part II'
+author: "Paige Miller"
+date: "11/3/2017"
+output: html_document
+---
+
+## Analysis Goals: 
+
+1. Data exploration and descriptive statistics
+2. Characterize daily patterns of SPC, temperature, and conductivity at each site
+3. Calculate dissimilarity between daily patterns at each site using Hierarchical clustering 
+4. Cross-correlation between stage height and conductivity (what the lag is and how related the time series are). 
+5. Help write analysis portion of methods section. 
+
+
+```{r setup, include=FALSE, echo=FALSE}
+knitr::opts_chunk$set(fig.path='figures/', cache=TRUE, 
+                      fig.height = 8, message=FALSE, warning=FALSE, echo=FALSE)
+
+# Load some helpful R packages
+library(ggplot2)
+library(lubridate)
+library(plyr)
+library(dplyr)
+library(grid)
+library(tidyverse)
+library(magrittr) 
+library(stringr) 
+library(GGally) 
+library(readr)
+library(xts)
+library(xtable)
+library(knitr)
+library(astsa)
+library(FitAR)
+library(stringi)
+
+```
+
+```{r multiplotFunc, echo=FALSE}
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  library(grid)
+
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+
+  numPlots = length(plots)
+
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                    ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+
+ if (numPlots==1) {
+    print(plots[[1]])
+
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+```
+
+
+## 4. Cross-correlation between stage height and conductivity
+
+We first excluded known probe errors. Joined with conductivity data by date. For now, I only have water level for: 
+
+* Brooklyn
+* Carr
+* Tanyard
+* Trail
+* Shoal 
+* Turkey
+
+Missing for: 
+
+* Brick
+* McNutt
+* Tallassee
+* Big
+
+```{r loadCondDat}
+
+# read data from analysis.Rmd
+fullDat2 <- read_csv("waterQualStanVars.csv")
+
+```
+
+```{r loadStageDat, message=FALSE, warning=FALSE}
+
+brooklynStage   <- s1  <-  read_csv("Stage_brooklyn.all2.csv") # has water level
+carrStage       <- s2  <-  read_csv("Stage_carr.all2.csv")  # has water level
+
+bearStage <- s3  <-  read_csv("Stage_bear.all2.csv")  # has water level
+
+# brickStage      <- s4  <-  read_csv("Stage_brickyard.csv") # does NOT have water level
+# mcnuttStage     <- s5  <-  read_csv("Stage_mcnutt.csv") # does NOT have water level
+# tallasseeStage  <- s6  <- read_csv("Stage_tallassee.csv") # does NOT have water level
+
+tanyardStage    <- s7  <- read_csv("Stage_tanyard.all2.csv")  # has water level
+trailStage      <- s8  <- read_csv("Stage_trail.all2.csv") # has water level
+shoalStage      <- s9  <- read_csv("Stage_shoal.all2.csv") # has water level
+turkeyStage     <- s10 <- read_csv("Stage_turkey.all2.csv") # has water level
+
+# bigStage       <- s11  <-  read_csv("Stage_big.csv") # does NOT have water level
+
+```
+
+```{r combineStageDat}
+
+s1  %<>% mutate(DateTime=as.POSIXct(DateTime)) %>% # Changing into POSIXct class
+  mutate(hour_of_day=floor_date(DateTime, unit="hour")) %>%
+  mutate(day=floor_date(DateTime, unit="day")) %>% # DateTime w/0 H:M
+  mutate(month=floor_date(DateTime, unit="month")) %>% # DateTime rounded to month
+  mutate(quarter=floor_date(DateTime, unit="quarter")) %>% # DateTime rounded to qtr
+  cbind(site=1) %>% cbind(name="Brooklyn") %>% # Name & Number of site
+  mutate(Exclude = ifelse(is.na(Exclude),0,Exclude)) %>%
+  filter(Exclude==0) # Take out known logger errors
+
+s2  %<>% mutate(DateTime=as.POSIXct(DateTime)) %>%
+  mutate(hour_of_day=floor_date(DateTime, unit="hour")) %>%
+  mutate(day=floor_date(DateTime, unit="day")) %>%
+  mutate(month=floor_date(DateTime, unit="month")) %>%
+  mutate(quarter=floor_date(DateTime, unit="quarter")) %>%
+  cbind(site=2) %>% cbind(name="Carr") %>%
+  mutate(Exclude = ifelse(is.na(Exclude),0,Exclude)) %>%
+  filter(Exclude==0)
+
+s3  %<>% mutate(DateTime=as.POSIXct(DateTime)) %>%
+  mutate(hour_of_day=floor_date(DateTime, unit="hour")) %>%
+  mutate(day=floor_date(DateTime, unit="day")) %>%
+  mutate(month=floor_date(DateTime, unit="month")) %>%
+  mutate(quarter=floor_date(DateTime, unit="quarter")) %>%
+  cbind(site=2) %>% cbind(name="Bear") %>%
+  mutate(Exclude = ifelse(is.na(Exclude),0,Exclude)) %>%
+  filter(Exclude==0)
+
+
+# Datetime is in an funny format that we needed to fix 
+# s4  %<>% mutate(DateTime=as.POSIXct(strptime(DateTime,
+#                                              format='%m/%d/%Y %H:%M', 
+#                                              tz="UTC"))) %>%
+#   rename(WaterLevel=Actual_depth) %>%
+#   mutate(day=floor_date(DateTime, unit="day")) %>%
+#   mutate(month=floor_date(DateTime, unit="month")) %>%
+#   mutate(quarter=floor_date(DateTime, unit="quarter")) %>%
+#   cbind(site=4) %>% cbind(name="Brickyard")%>%
+#   mutate(Exclude = ifelse(is.na(Exclude),0,Exclude)) %>%
+#   filter(Exclude==0)
+# 
+# s5  %<>% mutate(DateTime=as.POSIXct(strptime(DateTime,
+#                                              format='%m/%d/%Y %H:%M', 
+#                                              tz="UTC"))) %>%
+#   rename(WaterLevel=Actual_depth) %>%
+#   mutate(day=floor_date(DateTime, unit="day")) %>%
+#   mutate(month=floor_date(DateTime, unit="month")) %>%
+#   mutate(quarter=floor_date(DateTime, unit="quarter")) %>%
+#   cbind(site=5) %>% cbind(name="McNutt")%>%
+#   mutate(Exclude = ifelse(is.na(Exclude),0,Exclude)) %>%
+#   filter(Exclude==0)
+# 
+# s6  %<>% mutate(DateTime=as.POSIXct(strptime(DateTime,
+#                                              format='%m/%d/%Y %H:%M', 
+#                                              tz="UTC"))) %>%
+#   rename(WaterLevel=Actual_depth) %>%
+#   mutate(day=floor_date(DateTime, unit="day")) %>%
+#   mutate(month=floor_date(DateTime, unit="month")) %>%
+#   mutate(quarter=floor_date(DateTime, unit="quarter")) %>%
+#   cbind(site=6) %>% cbind(name="Tallassee")%>%
+#   mutate(Exclude = ifelse(is.na(Exclude),0,Exclude)) %>%
+#   filter(Exclude==0)
+
+s7  %<>% mutate(DateTime=as.POSIXct(DateTime)) %>%
+  mutate(hour_of_day=floor_date(DateTime, unit="hour")) %>%
+  mutate(day=floor_date(DateTime, unit="day")) %>%
+  mutate(month=floor_date(DateTime, unit="month")) %>%
+  mutate(quarter=floor_date(DateTime, unit="quarter")) %>%
+  cbind(site=7) %>% cbind(name="Tanyard")%>%
+  mutate(Exclude = ifelse(is.na(Exclude),0,Exclude)) %>%
+  filter(Exclude==0)
+
+s8  %<>% mutate(DateTime=as.POSIXct(DateTime)) %>%
+  mutate(hour_of_day=floor_date(DateTime, unit="hour")) %>%
+  mutate(day=floor_date(DateTime, unit="day")) %>%
+  mutate(month=floor_date(DateTime, unit="month")) %>%
+  mutate(quarter=floor_date(DateTime, unit="quarter")) %>%
+  cbind(site=8) %>% cbind(name="Trail")%>%
+  mutate(Exclude = ifelse(is.na(Exclude),0,Exclude)) %>%
+  filter(Exclude==0)
+
+s9  %<>% mutate(DateTime=as.POSIXct(DateTime)) %>%
+  mutate(hour_of_day=floor_date(DateTime, unit="hour")) %>%
+  mutate(day=floor_date(DateTime, unit="day")) %>%
+  mutate(month=floor_date(DateTime, unit="month")) %>%
+  mutate(quarter=floor_date(DateTime, unit="quarter")) %>%
+  cbind(site=9) %>% cbind(name="Shoal")%>%
+  mutate(Exclude = ifelse(is.na(Exclude),0,Exclude)) %>%
+  filter(Exclude==0)
+
+s10  %<>% mutate(DateTime=as.POSIXct(DateTime)) %>%
+  mutate(hour_of_day=floor_date(DateTime, unit="hour")) %>%
+  mutate(day=floor_date(DateTime, unit="day")) %>%
+  mutate(month=floor_date(DateTime, unit="month")) %>%
+  mutate(quarter=floor_date(DateTime, unit="quarter")) %>%
+  cbind(site=10) %>% cbind(name="Turkey")%>%
+  mutate(Exclude = ifelse(is.na(Exclude),0,Exclude)) %>%
+  filter(Exclude==0)
+
+# s11  %<>% mutate(DateTime=gsub("/", "-", DateTime)) %>%
+#   mutate(DateTime=as.POSIXct(DateTime)) %>%
+#   rename(WaterLevel=Actual_depth) %>%
+#   mutate(day=floor_date(DateTime, unit="day")) %>%
+#   mutate(month=floor_date(DateTime, unit="month")) %>%
+#   mutate(quarter=floor_date(DateTime, unit="quarter")) %>%
+#   cbind(site=11) %>% cbind(name="Big")%>%
+#   mutate(Exclude = ifelse(is.na(Exclude),0,Exclude)) %>%
+#   filter(Exclude==0)
+
+rows <- c("name", "site", "DateTime", "Abs.Pres", "Temp", "WaterLevel", "Barom.Pres", "day", "hour_of_day")
+
+stageDat <- rbind(s1  %>% subset(select=rows), 
+                 s2  %>% subset(select=rows),
+                 s3  %>% subset(select=rows),
+                 # s4  %>% subset(select=rows),
+                 # s5  %>% subset(select=rows),
+                 # s6  %>% subset(select=rows),
+                 s7  %>% subset(select=rows),
+                 s8  %>% subset(select=rows),
+                 s9  %>% subset(select=rows),
+                 s10  %>% subset(select=rows)#, 
+                 #s11  %>% subset(select=rows)
+                 )
+
+kable(filter(stageDat, WaterLevel<0) %>%
+  select(name, DateTime, WaterLevel), caption = "Instances of negative water level observations removed prior to analysis. ")
+
+stageDat %<>% filter(WaterLevel>0) %>% mutate(name=as.character(name))
+
+```
+
+```{r by15var}
+
+fullDat2 %<>% mutate(by30=floor_date(DateTime, unit="30 min")) %>% 
+  mutate(by15=floor_date(DateTime, unit="15 min")) %>%
+  select(by15, by30, name, Cond, Temp, SPC, stdCond, stdSpc, stdTemp)
+
+stageDat %<>% mutate(by30=floor_date(DateTime, unit="30 min")) %>%
+  mutate(by15=floor_date(DateTime, unit="15 min")) %>%
+  select(by15, by30, name, WaterLevel)
+
+fullDat3 <- full_join(fullDat2, stageDat)
+
+# write_csv(fullDat3, "joined_cond_stage_height.csv")
+
+```
+
+### Water level descriptives
+
+We have observations ranging from 2015-06-18 21:15:00 to 2017-07-07 09:20:15. But not all sites were observed at all point in that range. Only Carr has measurements in 2017. 
+
+```{r stageDescriptives}
+
+obs <- stageDat %>%
+  group_by(name) %>%
+  summarise(Observations=n()) %>%
+  rename(Site_Name=name) %>%
+  arrange(desc(Observations))
+
+kable(obs, caption="Number of water level observations per site (taken at 5 minute intervals). ", digits = 1)
+
+dStats <- stageDat %>%
+  group_by(name) %>%
+  summarise(mean_water=mean(WaterLevel, na.rm=T), 
+            sd_water=sd(WaterLevel, na.rm=T))
+
+kable(dStats, 
+      caption = "Mean and SD for water level and barom by  by site. ",
+      digits=2)
+
+```
+
+The water level is highest at Carr and lowest at Trail. The standard deviation in water level was highest at Turkey and lowest at Bear. 
+
+```{r waterLevelAll, fig.cap="Water level by site aggregated by hour (and averaged each hour). "}
+
+ggplot(stageDat, aes(x=hour(by15), y=WaterLevel, color=name)) + 
+  geom_smooth() + 
+  facet_wrap(~ name,scales = "free_y") + 
+  labs(x="Hour", y="Water Level") + 
+  theme(legend.position="none")
+
+```
+
+```{r stageHistograms, fig.cap="Since water level distributions are heavily right skewed (mean pulled to the right), normalizing the curves is causing there to be negative values. Black lines represent means.  "}
+
+gg<-ggplot(stageDat, aes(x=WaterLevel, fill=name)) + 
+  geom_histogram(binwidth = .05) + 
+  facet_wrap(~ name, scales = "free_x")  + 
+  theme(legend.position="none") + 
+  labs(title="Distribution of water levels by site")
+
+dat <- ddply(stageDat, "name", summarize, Mean=mean(WaterLevel))
+gg + geom_vline(aes(xintercept=Mean),  dat, col="black") + ylab("Frequency")
+
+```
+
+One way to standardize water level data might be to use Box Cox transformation. Box Cox test indicated that a negative power transformation would be appropriate. I can do this, but I think it may not be necessary. (Can have a chat about this later.)
+
+```{r boxCoxStageDat, fig.cap="Box Cox test on Bear data show that a Y^(-.374) transformation will be appropriate. "}
+
+# separate out by site name
+splitFull <- split(stageDat , f = stageDat$name) 
+
+test=splitFull$Bear$WaterLevel
+BoxCox(test)
+
+# add a column with transfomred data to each df
+splitFull <- lapply(splitFull, 
+               function(x){mutate(x, transformed=WaterLevel^(-.374))})
+
+# add a column with normalized transformed water level to each df
+splitFull <- lapply(splitFull, 
+               function(x){mutate(x,stdWater=(transformed-mean(transformed,
+                                                               na.rm=T))/sd(transformed,
+                                                                            na.rm=T))})
+
+
+stageDat <- ldply(splitFull, data.frame)
+
+```
+
+```{r stdWaterPlots, eval=FALSE}
+
+# not running for now
+ggplot(stageDat, aes(x=hour(by15), y=stdWater, color=name)) + 
+  geom_smooth() + 
+  facet_wrap(~ name,scales = "free_y") + 
+  labs(x="Hour", y="Water Level") + 
+  theme(legend.position="none")
+
+gg<-ggplot(stageDat, aes(x=stdWater, fill=name)) + 
+  geom_histogram(binwidth = .05) + 
+  facet_wrap(~ name, scales = "free_x")  + 
+  theme(legend.position="none") + 
+  labs(title="Distribution of water levels by site")
+
+dat <- ddply(stageDat, "name", summarize, Mean=mean(WaterLevel))
+gg + geom_vline(aes(xintercept=Mean),  dat, col="black") + ylab("Frequency")
+
+```
+
+\FloatBarrier
+
+#### Cross correlation with water level and SPC: Carr
+
+The basic problem we’re considering is the description and modeling of the relationship between stage height (water level) and SPC. 
+
+In the relationship between two time series (yt and xt), the series yt may be related to past lags of the x-series. The sample cross correlation function (CCF) is helpful for identifying lags of the x-variable that might be useful predictors of yt.
+
+A negative value for h is a correlation between the x-variable at a time before t and the y-variable at time t. For instance, consider h of neg. 2.  The CCF value would give the correlation between $x_t - 2$ and $y_t$.
+
+First let's just plot a chunk of the Carr time series from 2016-01-01 to 2016-02-01. We know we have both conductivity and water level measurements during this time interval. 
+
+```{r carrMonthTest, fig.cap="Water level and SPC at Carr from 2016-01-01  to 2016-02-01. Data are not standardized or transformed. ", eval=TRUE}
+
+CarrTest <- fullDat3 %>%
+  filter(name=="Carr") %>%
+  subset(by15 >= "2016-01-01" & by15 <= "2016-02-01") %>%
+  select(-name) %>%
+  arrange(by15)
+
+p1 <- ggplot(CarrTest, aes(x=by15, y=WaterLevel)) + 
+  geom_line() + 
+  labs(title = "", axis.title.y = "") + 
+  theme(legend.position="none") + xlab("")
+  
+p2 <- ggplot(CarrTest, aes(x=by15, y=SPC)) + 
+  geom_line() + 
+  labs(title = "", axis.title.y = "") + 
+  theme(legend.position="none") + xlab("")
+
+multiplot(p1, p2, cols=1)
+
+```
+
+Clearly our data are not stationary (i.e., variables at time t are related to variables at time t-1, t-2, ...). We can first difference to transform a non-stationary series to a (at least a weakly) stationary series apt for assessing cross-correlation. 
+
+```{r carrMonthTestDiff, fig.cap="Differenced time series for water level and SPC at Carr from 2016-01-01  to 2016-02-01. ", eval=FALSE}
+
+p1 <- ggplot(CarrTest,  aes(x=by15, y=c(diff(WaterLevel), 0))) + 
+  geom_line() + 
+  labs(title = "") +
+  ylab("First-diff Water Level") +
+  theme(legend.position="none")
+  
+p2 <- ggplot(CarrTest, aes(x=by15, y=c(diff(SPC), 0))) + 
+  geom_line() + 
+  labs(title = "") + 
+  ylab("First-diff SPC")+
+  theme(legend.position="none")
+
+multiplot(p1, p2, cols=1)
+
+```
+
+First differenced water level plot of Carr from 2016-01-01  to 2016-02-01 shows obvious correlation. Spikes in water level seem to be followed by dips in SPC then rises in SPC.  
+ 
+\FloatBarrier
+
+```{r acfPlots, fig.cap="ACF plots of water level and SPC at Carr. One lag represents a 15 minute interval. ", fig.height=5}
+
+CarrTest %<>% select(by15, WaterLevel, SPC)
+
+CarrTest <- data.frame(CarrTest)
+
+par(mfrow=c(1,2))
+acf(diff(CarrTest$WaterLevel), na.action = na.pass, main="Water level", lag.max=20)
+acf(diff(CarrTest$SPC), na.action = na.pass, main="SPC", lag.max=48)
+
+```
+
+```{r ccfPlot, fig.cap="Cross correlation between stage height and SPC. Lags are 15 min intervals. Something seems amiss. ", eval=FALSE}
+
+ccf(diff(CarrTest$SPC), diff(CarrTest$WaterLevel), na.action = na.pass, main="", lag.max=20)
+
+```
+
+#### Cross correlation of water level and SPC: all sites
+
+Now we're interested in assessing the correlation between daily stage height signals and daily SPC for the rest of the sites in 15 minute intervals. 
+
+```{r waterHeightSignals}
+
+## Just getting data into the right format
+
+fullDat3 %<>% mutate(hour.min=paste0(hour(by15), ".",
+                                     stri_sub(as.character(minute(by15)/60), 3))) %>%
+  mutate(hour.min=as.numeric(hour.min))
+
+SPC <- fullDat3 %>%
+  ggplot(aes(hour.min, SPC, group=name)) +
+  geom_smooth() 
+
+SPC <- ggplot_build(SPC)$data[[1]] %>%
+  select(x, y, group) %>%
+  rename(hour.min=x, SPC=y, site=group)%>%
+  arrange(hour.min)
+
+WaterLevel <- fullDat3 %>%
+  ggplot(aes(hour.min, WaterLevel, group=name)) +
+  geom_smooth() %>%
+  arrange(hour.min)
+
+WaterLevel <- ggplot_build(WaterLevel)$data[[1]] %>%
+  select(x, y, group) %>%
+  rename(hour.min=x, WaterLevel=y, site=group) %>%
+  arrange(hour.min)
+
+```
+
+```{r}
+
+spc.site1 <- filter(SPC, site==1)
+wat.site1 <- filter(WaterLevel, site==1)  
+
+ccf(diff(wat.site1$WaterLevel), diff(spc.site1$SPC), na.action = na.pass, lag=12)
+### THIS JUST LOOKS WRONG IDK
+```
+
+
+```{r scatterTurkey, fig.cap="Scatterplots of Turkey yt (SPC) versus xt+h (water) for negative h from 0 back to 4 ", eval=FALSE}
+
+lag2.plot(diff(splitFull[[4]]$hourWater), diff(splitFull[[4]]$hourSPC), 3)
+          
+```
+
+#### Next steps/questions
+
+### Questions for Emily:
+
+_The probes for conductivity and for water level took measurements at 5 minute intervals but at different 5 minute intervals._ 
+
+I grouped measurements hourly for now. We might want to do 15 minute intervals, or 20 minutes to see the changes that we want to. How fast do the signals wash away following rain events?
+
+_Some negative water level values, exclude from analysis?_
+
+For now... we should ignore negative values. That should just mean that the sensor came out of the water at some point.
+
+_Should we be accounting for rainfall when calculating ccf between time series?_
+
+Like perhaps studying the response post-rain event separately? Get a list of rain fall in Athens, subset by those days, and study response after that. How would they differ? 
+
+## Next steps
+
+* Make plots of daily stage height similar to the normalized SPC plots
+* Do a cross correlation of SPC and stage with 15 min intervals
+* Look at precipitation with stage/SPC
+
+
+

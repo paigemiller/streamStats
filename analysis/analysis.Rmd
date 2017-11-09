@@ -1,0 +1,596 @@
+---
+title: 'Analysis: SPC & Temperature'
+author: "Paige Miller"
+date: "10/30/2017"
+output:
+  pdf_document: default
+  word_document: default
+header-includes: \usepackage{placeins}
+---
+
+```{r setup, include=FALSE, echo=FALSE}
+knitr::opts_chunk$set(fig.path='condFigures/', cache=TRUE, 
+                      fig.height = 8, message=FALSE, warning=FALSE, echo=FALSE)
+
+
+# Load some helpful R packages
+library(ggplot2)
+library(lubridate)
+library(plyr)
+library(dplyr)
+library(grid)
+library(tidyverse)
+library(magrittr) 
+library(stringr) 
+library(GGally) 
+library(readr)
+library(xts)
+library(xtable)
+library(knitr)
+library(astsa)
+
+```
+
+## Analysis Goals:
+
+1. Data exploration and descriptive statistics
+2. Characterize daily patterns of SPC, temperature, and conductivity at each site
+3. Calculate dissimilarity between daily patterns at each site using Hierarchical clustering 
+4. Cross-correlation between stage height and conductivity (what the lag is and how related the time series are). 
+5. Help write analysis portion of methods section. 
+
+## 1. Data exploration
+
+```{r loadData, message=FALSE, warning=FALSE}
+setwd("~/Desktop/streamHealth/rawData/conductivity")
+
+brooklyn   <- s1  <-  read_csv("Brooklyn.all.csv")
+carr       <- s2  <-  read_csv("Carr.all.csv")
+bear       <- s3  <-  read_csv("Cond_Bear_Emily.csv")
+brick      <- s4  <-  read_csv("Cond_brickyard.csv")
+mcnutt     <- s5  <-  read_csv("Cond_mcnutt.csv")
+tallassee  <- s6  <- read_csv("Cond_tallassee.csv")
+tanyard    <- s7  <- read_csv("Cond_Tanyard_Emily.csv")
+trail      <- s8  <- read_csv("Cond_Trail_Emily.csv")
+shoal      <- s9  <- read_csv("Shoal.all.csv")
+turkey     <- s10 <- read_csv("Turkey.all.csv")
+
+```
+
+Data were first cleaned by excluding any observations corresponding to known logger errors recorded by the logger system. 
+
+```{r dataClean, message=FALSE}
+# Some quick data cleaning to change type of dates for plotting, 
+# subsetting, etc
+
+s1  %<>% mutate(DateTime=as.POSIXct(DateTime)) %>% # Changing into POSIXct class
+  mutate(hour_of_day=floor_date(DateTime, unit="hour")) %>%
+  mutate(day=floor_date(DateTime, unit="day")) %>% # DateTime w/0 H:M
+  mutate(month=floor_date(DateTime, unit="month")) %>% # DateTime rounded to month
+  mutate(quarter=floor_date(DateTime, unit="quarter")) %>% # DateTime rounded to qtr
+  cbind(site=1) %>% cbind(name="Brooklyn") %>% # Name & Number of site
+  mutate(SPC=as.numeric(SPC)) %>% # SPC reads as a character otherwise?
+  mutate(Exclude = ifelse(is.na(Exclude),0,Exclude)) %>%
+  filter(Exclude==0) # Take out known logger errors
+
+s2  %<>% mutate(DateTime=as.POSIXct(DateTime)) %>%
+  mutate(hour_of_day=floor_date(DateTime, unit="hour")) %>%
+  mutate(day=floor_date(DateTime, unit="day")) %>%
+  mutate(month=floor_date(DateTime, unit="month")) %>%
+  mutate(quarter=floor_date(DateTime, unit="quarter")) %>%
+  cbind(site=2) %>% cbind(name="Carr") %>%
+  mutate(SPC=as.numeric(SPC))%>%
+  mutate(Exclude = ifelse(is.na(Exclude),0,Exclude)) %>%
+  filter(Exclude==0)
+
+s3  %<>% mutate(DateTime=as.POSIXct(DateTime)) %>%
+  mutate(hour_of_day=floor_date(DateTime, unit="hour")) %>%
+  mutate(day=floor_date(DateTime, unit="day")) %>%
+  mutate(month=floor_date(DateTime, unit="month")) %>%
+  mutate(quarter=floor_date(DateTime, unit="quarter")) %>%
+  cbind(site=3) %>% cbind(name="Bear")%>%
+  mutate(SPC=as.numeric(SPC))%>%
+  mutate(Exclude = ifelse(is.na(Exclude),0,Exclude)) %>%
+  filter(Exclude==0)
+
+# Datetime is in an funny format that we needed to fix 
+s4  %<>% mutate(DateTime=as.POSIXct(strptime(DateTime,
+                                             format='%m/%d/%Y %H:%M', 
+                                             tz="UTC"))) %>%
+  mutate(hour_of_day=floor_date(DateTime, unit="hour")) %>%
+  mutate(day=floor_date(DateTime, unit="day")) %>%
+  mutate(month=floor_date(DateTime, unit="month")) %>%
+  mutate(quarter=floor_date(DateTime, unit="quarter")) %>%
+  cbind(site=4) %>% cbind(name="Brickyard")%>%
+  mutate(SPC=as.numeric(SPC))%>%
+  mutate(Exclude = ifelse(is.na(Exclude),0,Exclude)) %>%
+  filter(Exclude==0)
+
+s5  %<>% mutate(DateTime=as.POSIXct(strptime(DateTime,
+                                             format='%m/%d/%Y %H:%M', 
+                                             tz="UTC"))) %>%
+  mutate(hour_of_day=floor_date(DateTime, unit="hour")) %>%
+  mutate(day=floor_date(DateTime, unit="day")) %>%
+  mutate(month=floor_date(DateTime, unit="month")) %>%
+  mutate(quarter=floor_date(DateTime, unit="quarter")) %>%
+  cbind(site=5) %>% cbind(name="McNutt")%>%
+  mutate(SPC=as.numeric(SPC))%>%
+  mutate(Exclude = ifelse(is.na(Exclude),0,Exclude)) %>%
+  filter(Exclude==0)
+
+s6  %<>% mutate(DateTime=as.POSIXct(strptime(DateTime,
+                                             format='%m/%d/%Y %H:%M', 
+                                             tz="UTC"))) %>%
+  mutate(hour_of_day=floor_date(DateTime, unit="hour")) %>%
+  mutate(day=floor_date(DateTime, unit="day")) %>%
+  mutate(month=floor_date(DateTime, unit="month")) %>%
+  mutate(quarter=floor_date(DateTime, unit="quarter")) %>%
+  cbind(site=6) %>% cbind(name="Tallassee")%>%
+  mutate(SPC=as.numeric(SPC))%>%
+  mutate(Exclude = ifelse(is.na(Exclude),0,Exclude)) %>%
+  filter(Exclude==0)
+
+s7  %<>% mutate(DateTime=as.POSIXct(DateTime)) %>%
+  mutate(hour_of_day=floor_date(DateTime, unit="hour")) %>%
+  mutate(day=floor_date(DateTime, unit="day")) %>%
+  mutate(month=floor_date(DateTime, unit="month")) %>%
+  mutate(quarter=floor_date(DateTime, unit="quarter")) %>%
+  cbind(site=7) %>% cbind(name="Tanyard")%>%
+  mutate(SPC=as.numeric(SPC))%>%
+  mutate(Exclude = ifelse(is.na(Exclude),0,Exclude)) %>%
+  filter(Exclude==0)
+
+s8  %<>% mutate(DateTime=as.POSIXct(DateTime)) %>%
+  mutate(hour_of_day=floor_date(DateTime, unit="hour")) %>%
+  mutate(day=floor_date(DateTime, unit="day")) %>%
+  mutate(month=floor_date(DateTime, unit="month")) %>%
+  mutate(quarter=floor_date(DateTime, unit="quarter")) %>%
+  cbind(site=8) %>% cbind(name="Trail")%>%
+  mutate(SPC=as.numeric(SPC))%>%
+  mutate(Exclude = ifelse(is.na(Exclude),0,Exclude)) %>%
+  filter(Exclude==0)
+
+s9  %<>% mutate(DateTime=as.POSIXct(DateTime)) %>%
+  mutate(hour_of_day=floor_date(DateTime, unit="hour")) %>%
+  mutate(day=floor_date(DateTime, unit="day")) %>%
+  mutate(month=floor_date(DateTime, unit="month")) %>%
+  mutate(quarter=floor_date(DateTime, unit="quarter")) %>%
+  cbind(site=9) %>% cbind(name="Shoal")%>%
+  mutate(SPC=as.numeric(SPC))%>%
+  mutate(Exclude = ifelse(is.na(Exclude),0,Exclude)) %>%
+  filter(Exclude==0)
+
+s10  %<>% mutate(DateTime=as.POSIXct(DateTime)) %>%
+  mutate(hour_of_day=floor_date(DateTime, unit="hour")) %>%
+  mutate(day=floor_date(DateTime, unit="day")) %>%
+  mutate(month=floor_date(DateTime, unit="month")) %>%
+  mutate(quarter=floor_date(DateTime, unit="quarter")) %>%
+  cbind(site=10) %>% cbind(name="Turkey")%>%
+  mutate(SPC=as.numeric(SPC))%>%
+  mutate(Exclude = ifelse(is.na(Exclude),0,Exclude)) %>%
+  filter(Exclude==0)
+
+## Here we are row binding the data sets so that we can
+## manipulate, analyze easier etc
+## We can keep the sites separate because of our new
+## factor: name
+
+rows <- c("name", "site", "DateTime", "hour_of_day", "day", 
+          "month", "quarter", "Cond", "Temp", "SPC")
+
+fullDat <- rbind(s1  %>% subset(select=rows), 
+                 s2  %>% subset(select=rows), 
+                 s3  %>% subset(select=rows),
+                 s4  %>% subset(select=rows),
+                 s5  %>% subset(select=rows),
+                 s6  %>% subset(select=rows),
+                 s7  %>% subset(select=rows),
+                 s8  %>% subset(select=rows),
+                 s9  %>% subset(select=rows),
+                 s10  %>% subset(select=rows))
+```
+
+```{r tables}
+obs <- fullDat %>%
+  group_by(name) %>%
+  tally()
+
+kable(obs, caption="Number of observations per site (taken at 5 minute intervals). ", digits = 1)
+
+dStats <- fullDat %>%
+  group_by(name) %>%
+  summarise(mean_cond=mean(Cond, na.rm=T), 
+            sd_con=sd(Cond, na.rm=T),
+            mean_SPC=mean(SPC, na.rm=T),
+            sd_SPC=sd(SPC, na.rm=T),
+            mean_Temp=mean(Temp, na.rm=T),
+            sd_Temp=sd(Temp, na.rm=T))
+
+kable(dStats, caption = "Mean and SD for conductivity, SPC,
+      and temperature (C) by site. ", digits=1)
+
+# Average SPC not of Carr
+a <- filter(dStats, name!="Carr") %>%  summarise(mean=mean(mean_SPC))
+a <- as.numeric(round(a, 3))
+
+# Average temperature of all sites
+b <- as.numeric(round(mean(dStats$mean_Temp), 3))
+
+# SPC of Carr 
+c <- as.numeric(round(dStats[2, 4], 2))
+
+# Cond of Carr 
+d <- as.numeric(round(dStats[2, 2], 2))
+
+# Average Cond not of Carr
+e <- filter(dStats, name!="Carr") %>%  summarise(mean=mean(mean_cond))
+e <- as.numeric(round(e, 3))
+
+```
+
+```{r SPCplot, fig.cap="SPC readings at each site. Known logger errors removed prior to plotting. ", eval=TRUE}
+
+ggplot(fullDat, aes(x=day, y=SPC, color=factor(name))) + 
+  geom_line() + 
+  facet_grid(name ~ .) + 
+  labs(title = "SPC", axis.title.y = "") + 
+  theme(legend.position="none")
+
+```
+
+We have over one year of data from Brooklyn, Carr, Shoal, and Turkey starting in June of 2015. The Carr time series is notably more variable than the others but Brooklyn, McNutt, Tallasee, and Shoal all have large peaks in SPC. 
+
+```{r tempPlot, fig.cap="Temperature at each site. ", eval=TRUE}
+
+ggplot(fullDat, aes(x=day, y=Temp, color=factor(name))) + 
+  geom_line() + 
+  facet_grid(name ~ .) + 
+  labs(title = "Temperature (C)") + 
+  theme(legend.position="none")
+
+```
+
+```{r condPlot, fig.cap="Conductivity at each site. "}
+
+ggplot(fullDat, aes(x=day, y=Cond, color=factor(name))) + 
+  geom_line() + 
+  facet_grid(name ~ .) + 
+  labs(title = "Conductivity") + 
+  theme(legend.position="none")
+
+```
+
+```{r SPCrange, fig.cap="Distribution of SPC observations by site (y-axis has been logged). The box lines show the median and the first and third percentiles. The whiskers correspond to 1.5 times the interquartile range (IQR) added and subracted from median. "}
+
+fullDat %>%
+  group_by(name) %>%
+  ggplot(aes(name, log(SPC), color=name)) + 
+  geom_boxplot() + 
+  theme(legend.position="none")+ 
+  labs(x="")
+
+```
+
+```{r condRange, fig.cap="Distribution of Cond observations by site. The box lines show the median and the first and third percentiles. The whiskers correspond to 1.5 times the interquartile range (IQR) added and subracted from median. "}
+
+fullDat %>%
+  group_by(name) %>%
+  ggplot(aes(name, log(Cond), color=name)) + 
+  geom_boxplot() + 
+  theme(legend.position="none")+ 
+  labs(x="")
+
+```
+
+Carr has a notably higher average SPC  (`r c`) and conductivity (`r d`) compared with the average of all other sites (`r a` and `r e`). Carr also has a much larger standard deviation of conductivity and of SPC than other sites. McNutt, Bear, Shoal, Turkey, Brooklyn, and Trail all have a mean SPC ranging from 57 to 85. 
+
+```{r tempRange, fig.cap="Distribution of Temp observations by site. Displays the median, and first/third percentiles with 1.5 times IQR added and subracted from median. "}
+
+fullDat %>%
+  group_by(name) %>%
+  ggplot(aes(name, Temp, color=name)) + 
+  geom_boxplot() + 
+  theme(legend.position="none")+ 
+  labs(x="")
+
+```
+
+The average temperature across sites is `r b`. Brickyard has the highest average temperature (17.5) and Trail has the lowest (12.2). 
+
+## 2. Daily signals at each site
+
+To understand how temperature, SPC, and conductivity change daily at each site, we grouped data by _site_ and by _hour_ of the day. Since we have observations at 5 minute intervals, and an average of 84000 observations per site, each hour represents about 3500 data points (taken from various sites on different days in the study). For each site, data (of temperature, SPC, and conductivity) were smoothed using general additive models with a cubic spline. The function for smoothing is `response ~ s(hour, bs = "cs")` with response variables temperature, SPC, or conductivity and hour is hour of the day ranging from 0 to 23. `CS` stands for cubic splines and `s` just refers to  a smoothing function. The smoothed lines can be interpreted as the mean and 95$\%$ confidence interval. In general, using a smooth results in a better estimate of local averages than by binning and averaging manually if the function being estimated is smooth (which our logger data should be). 
+
+To compare site specific patterns of temperature, SPC, and conductivity _relative_ to other sites, we calculated the normalized temperature, SPC, and conductivity by subtracting the expected value (mean) and then dividing by the standard deviation of each site. 
+
+```{r}
+## Just getting data into the right format
+cond <- fullDat %>%
+  ggplot(aes(hour(DateTime), Cond, group=name)) +
+  geom_smooth() 
+cond <- ggplot_build(cond)$data[[1]] %>%
+  select(x, y, group) %>%
+  rename(dec_hr=x, Cond=y, site=group)
+
+condMat <- matrix(cond$Cond, ncol=10, # 10 different sites
+                  dimnames = list(unique(cond$dec_hr), 1:10))
+condMins <- apply(condMat, 2, min)
+condMaxs <- apply(condMat, 2, max)
+
+temp <- fullDat %>%
+  ggplot(aes(hour(DateTime), Temp, group=name)) +
+  geom_smooth() 
+temp <- ggplot_build(temp)$data[[1]]%>%
+  select(x, y, group) %>%
+  rename(dec_hr=x, Temp=y, site=group)
+
+tempMat <- matrix(temp$Temp, ncol=10, 
+                  dimnames = list(unique(temp$dec_hr), 1:10))
+tempMins <- apply(tempMat, 2, min)
+tempMaxs <- apply(tempMat, 2, max)
+
+spc <- fullDat %>%
+  ggplot(aes(hour(DateTime), SPC, group=name)) +
+  geom_smooth() 
+spc <- ggplot_build(spc)$data[[1]]%>%
+  select(x, y, group) %>%
+  rename(dec_hr=x, SPC=y, site=group)
+
+spcMat <- matrix(spc$SPC, ncol=10, 
+                  dimnames = list(unique(spc$dec_hr), 1:10))
+spcMins <- apply(spcMat, 2, min)
+spcMaxs <- apply(spcMat, 2, max)
+
+minMaxs <- cbind(tempMins, tempMaxs, spcMins, spcMaxs, condMins, condMaxs)
+rownames(minMaxs) <- unique(fullDat$name)
+
+kable(minMaxs, caption = "Daily minimum and maximum temperature, SPC, and conductivity values by site", digits = 1)
+
+ranges <- cbind(tempMaxs-tempMins, spcMaxs-spcMins, condMaxs-condMins)
+rownames(ranges) <- unique(fullDat$name)
+colnames(ranges) <- c("Temp", "SPC", "Cond")
+
+kable(ranges, caption = "Daily temperature, SPC, and conductivity ranges by site. ", digits=1)
+
+```
+
+```{r dailyTemp, fig.cap="Daily temperature signal at each site. "}
+
+fullDat %>%
+  ggplot(aes(hour(DateTime), Temp, color=name)) +
+  geom_smooth() + 
+  ggtitle("Daily Temperature Signals") + 
+  labs(x="Hour", y="Temperature (C)") #+ 
+  #facet_wrap(~ name, scales="free_y") + 
+  #theme(legend.position="none")
+
+```
+
+The daily temperature pattern is similar at every site: the temperature peaks in the late afternoon and early evening and then drops overnight. 
+
+The average daily temperature fluctuation is `r mean(ranges[,1])` °C but varies from 1.6 at Tallassee to 3.9 at Shoal. 
+
+```{r dailySPC, fig.cap="Daily SPC signal at each site. ", warning=FALSE}
+
+fullDat %>%
+  ggplot(aes(hour(DateTime), SPC, color=name)) +
+  geom_smooth() + 
+  ggtitle("Daily SPC Signals") + 
+  labs(x="Hour", y="SPC") + 
+  facet_wrap(~ name, scales="free_y") + 
+  theme(legend.position="none")
+
+```
+
+The daily SPC patterns vary by site. In about half of the sites (Brooklyn, Bear, Brickyard, Tanyard, and Trail), SPC peaks unimodally in the early to late morning. The daily SPC signal at Brooklyn is notably different the others: the peak is much narrower and there is not a steady rise in SPC overnight. In contrast, the SPC at Shoal and Tallassee dips in the morning and peaks in the evening. Daily signals for McNutt and Turkey also appear similarly as the SPC dips in the afternoon and peaks overnight. At Carr the SPC remains flat, but elevated (above 500), throughout the day. 
+
+The average SPC fluctuation throughout the day is 1.57. Brooklyn has the largest SPC fluctuation (3.7) and Shoal has the smallest (0.44). 
+
+```{r dailyCond, fig.cap="Daily conductivity signal at each site. "}
+
+fullDat %>%
+  ggplot(aes(hour(DateTime), Cond, color=name)) +
+  geom_smooth() + 
+  ggtitle("Daily Conductivity Signals") + 
+  labs(x="Hour", y="Conductivity") + 
+  facet_wrap(~ name, scales="free_y") + 
+  theme(legend.position="none")
+
+```
+
+Daily changes in conductivity are mostly consistent across the sites: the maximum conductivity level occurs in the evening and the minimum occurs in the morning (5 to 10am). Brooklyn shows a notably different signal from the other sites. It has a multi-modal distribution of conductivity levels throughout the day. Similar to other sites, it's global peak occurs in the evening but a local peak is also present in the morning hours. 
+
+The average range of conductivity throughout the day is 4.54. The range of conductivity at Carr is considerably higher than the rest of the sites (17.3). Tallassee has the smallest range in conductivity (1.7). 
+
+```{r}
+
+# separate out by site name
+splitFull <- split(fullDat , f = fullDat$name) 
+
+# add a column with normalized conductivity to each df
+splitFull <- lapply(splitFull, 
+               function(x){mutate(x,stdCond=(Cond-mean(Cond, na.rm=T))/sd(Cond, na.rm=T))})
+
+# add a column with normalized SPC to each df
+splitFull <- lapply(splitFull, 
+               function(x){mutate(x,stdSpc=(SPC-mean(SPC, na.rm=T))/sd(SPC, na.rm=T))})
+
+# add a column with normalized Temp to each df
+splitFull <- lapply(splitFull, 
+               function(x){mutate(x,stdTemp=(Temp-mean(Temp, na.rm=T))/sd(Temp, na.rm=T))})
+
+fullDat2 <- ldply(splitFull, data.frame)
+
+# write.csv(fullDat2, "waterQualStanVars.csv") 
+
+```
+
+```{r normTemp, fig.cap="Normalized daily temperature signal at each site. "}
+
+fullDat2 %>%
+  ggplot(aes(hour(DateTime), stdTemp, color=name)) +
+  geom_smooth() + 
+  ggtitle("Normalized Temperature Signals") + 
+  labs(x="Hour", y="Temperature (C)") + 
+  facet_wrap(~ name) + 
+  theme(legend.position="none")
+
+```
+
+Normalized patterns of temperature, SPC, and conductivity mirror those of the raw data. The Bear site stands out as having a larger daily temperature fluctuation (1.3) than other sites (average fluctuation across all sites is 0.56).  
+
+```{r normSPC, fig.cap="Normalized daily SPC signal at each site. ", warning=FALSE}
+
+fullDat2 %>%
+  ggplot(aes(hour(DateTime), stdSpc, color=name)) +
+  geom_smooth() + 
+  ggtitle("Normalized SPC Signals") + 
+  labs(x="Hour", y="SPC") + 
+  facet_wrap(~ name) + 
+  theme(legend.position="none")
+
+```
+
+The normalized SPC fluctuates more at Brooklyn (0.17) than other sites. The average normalized daily fluctuation is 0.07. 
+
+```{r normCond, fig.cap="Normalized daily conductivity signal at each site. "}
+
+fullDat2 %>%
+  ggplot(aes(hour(DateTime), stdCond, color=name)) +
+  geom_smooth() + 
+  ggtitle("Normalized Conductivity Signals") + 
+  labs(x="Hour", y="Conductivity") + 
+  facet_wrap(~ name) + 
+  theme(legend.position="none")
+
+```
+
+In contrast to the normalized SPC, the normalized conductivity fluctuates more at Trail, Bear, Turkey, Tanyard, Shoal, McNutt, Carr, and Brickyard than at Brooklyn. 
+
+```{r}
+## Just getting data into the right format
+cond2 <- fullDat2 %>%
+  ggplot(aes(hour(DateTime), stdCond, group=name)) +
+  geom_smooth() 
+cond2 <- ggplot_build(cond2)$data[[1]] %>%
+  select(x, y, group) %>%
+  rename(dec_hr=x, stdCond=y, site=group)
+
+condMat2 <- matrix(cond2$stdCond, ncol=10, # 10 different sites
+                  dimnames = list(unique(cond2$dec_hr), 1:10))
+condMins2 <- apply(condMat2, 2, min)
+condMaxs2 <- apply(condMat2, 2, max)
+
+temp2 <- fullDat2 %>%
+  ggplot(aes(hour(DateTime), stdTemp, group=name)) +
+  geom_smooth() 
+temp2 <- ggplot_build(temp2)$data[[1]]%>%
+  select(x, y, group) %>%
+  rename(dec_hr=x, stdTemp=y, site=group)
+
+tempMat2 <- matrix(temp2$stdTemp, ncol=10, 
+                  dimnames = list(unique(temp2$dec_hr), 1:10))
+tempMins2 <- apply(tempMat2, 2, min)
+tempMaxs2 <- apply(tempMat2, 2, max)
+
+spc2 <- fullDat2 %>%
+  ggplot(aes(hour(DateTime), stdSpc, group=name)) +
+  geom_smooth() 
+spc2 <- ggplot_build(spc2)$data[[1]]%>%
+  select(x, y, group) %>%
+  rename(dec_hr=x, stdSpc=y, site=group)
+
+spcMat2 <- matrix(spc2$stdSpc, ncol=10, 
+                  dimnames = list(unique(spc2$dec_hr), 1:10))
+spcMins2 <- apply(spcMat2, 2, min)
+spcMaxs2 <- apply(spcMat2, 2, max)
+
+minMaxs2 <- cbind(tempMins2, tempMaxs2, spcMins2, spcMaxs2, condMins2, condMaxs2)
+rownames(minMaxs2) <- unique(fullDat$name)
+
+kable(minMaxs2, caption = "Daily minimum and maximum normalized temperature, normalized SPC, and normalized conductivity values by site", digits = 2)
+
+ranges2 <- cbind(tempMaxs2-tempMins2, spcMaxs2-spcMins2, condMaxs2-condMins2)
+rownames(ranges2) <- unique(fullDat$name)
+colnames(ranges2) <- c("Norm_Temp", "Norm_SPC", "Norm_Cond")
+
+kable(ranges2, caption = "Normalized daily temperature, SPC, and conductivity ranges by site. ", digits=1)
+
+```
+
+## 3. Calculate dissimilarity between daily patterns at each site using Hierarchical clustering 
+
+```{r}
+## Just getting data into the right format
+cond <- fullDat2 %>%
+  ggplot(aes(hour(DateTime), stdCond, group=name)) +
+  geom_smooth() 
+cond <- ggplot_build(cond)$data[[1]] %>%
+  select(x, y, group) %>%
+  rename(dec_hr=x, stdCond=y, site=group)
+
+condMat <- matrix(cond$stdCond, ncol=10, # 10 different sites
+                  dimnames = list(unique(cond$dec_hr), 1:10))
+
+temp <- fullDat2 %>%
+  ggplot(aes(hour(DateTime), stdTemp, group=name)) +
+  geom_smooth() 
+temp <- ggplot_build(temp)$data[[1]]%>%
+  select(x, y, group) %>%
+  rename(dec_hr=x, stdTemp=y, site=group)
+
+tempMat <- matrix(temp$stdTemp, ncol=10, 
+                  dimnames = list(unique(temp$dec_hr), 1:10))
+
+spc <- fullDat2 %>%
+  ggplot(aes(hour(DateTime), stdSpc, group=name)) +
+  geom_smooth() 
+spc <- ggplot_build(spc)$data[[1]]%>%
+  select(x, y, group) %>%
+  rename(dec_hr=x, stdSpc=y, site=group)
+
+spcMat <- matrix(spc$stdSpc, ncol=10, 
+                  dimnames = list(unique(spc$dec_hr), 1:10))
+
+```
+
+To quantify numerically the similarity in daily patterns of temperature, SPC, and conductivity at each site, we performed hierarchical clustering on the smoothed, normalized curves. We used the normalized curves because we wanted to understand the types of patterns relative to other sites rather than calculate the similarity of the absolute changes at each site. 
+
+Hierarchical clustering requires a dissimilarity matrix to classify vectors (our smoothed data). We used Euclidean Distance between each pair of signals, x and y ($d(x,y)=\sum\limits_{i=1}^{m} (x_i - y_i)^2$), as a measure of dissimilarity. With the distance matrix found, we then used the complete linkage cluster analysis to discover relationships between daily signals at each site. The complete linkage method works by assigning each object to its own cluster and the proceeding iteratively to find similar clusters using the Lance-Williams dissimilarity update formula. Eventually, the algorithm joins all objects into a single cluster. 
+
+```{r }
+
+## calculating distances
+condDist <- dist(t(condMat))
+tempDist <- dist(t(tempMat))
+spcDist <- dist(t(spcMat))
+
+## hierarchial clustering
+condH <- hclust(condDist)
+tempH <- hclust(tempDist)
+spcH <- hclust(spcDist)
+
+```
+
+```{r hclustTemp, fig.cap="Hierarchial clustering of normalized temperature (C) by site. "}
+plot(tempH, labels=unique(fullDat$name), xlab = "Site", main = "Normalized temperature")
+
+```
+
+According to our hierarchical clustering analysis of normalized temperature, the signal at Bear was most different from all other sites. Tanyard and Trail were most similar to each other and were added to the tree after all other sites (excluding Bear, which was added last). The other seven sites (McNutt, Carr, Shoal, Brickyard, Turkey, Brooklyn, Tallassee) were closely related as the height of the branches is similar (and close to zero). 
+
+```{r hclustSpc, fig.cap="Hierarchial clustering of normalized SPC by site. "}
+plot(spcH, labels=unique(fullDat$name), xlab = "Site", main = "Normalized SPC")
+
+```
+
+Brooklyn shows the most dissimilar normalized SPC pattern of all the sites. Brickyard and Tanyard were the 2nd and 3rd most dissimilar. Tallassee, Carr, and Shoal were closely related (they don't vary much in height which corresponds to amount of dissimilarity). McNutt and Turkey were closely related, as were Bear and Trail. 
+
+```{r hclustCond, fig.cap="Hierarchial clustering of normalized conductivity by site. "}
+## plotting trees
+plot(condH, labels=unique(fullDat$name), xlab="Site", main="Normalized conductivity")
+
+```
+
+Again, Brooklyn is an outlier for daily pattern. We see that it was added to the tree last among all other sites daily normalized conductivity. Bear, Trail, and Tanyard were added 2nd, 3rd, and 4th from last indicating they were more different from the other 6 (Shoal, Turkey, Brickyard, McNutt, Carr, and Tallassee) than were the 6 from each other.  
+
