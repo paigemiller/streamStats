@@ -2,7 +2,10 @@
 title: 'Analysis: Part II'
 author: "Paige Miller"
 date: "11/3/2017"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
+header-includes: \usepackage{placeins}
 ---
 
 ## Analysis Goals: 
@@ -97,8 +100,10 @@ Missing for:
 
 ```{r loadCondDat}
 
-# read data from analysis.Rmd
-fullDat2 <- read.csv("waterQualStanVars.csv")
+# read data from analysis.Rmd in the analysis folder
+# has to be read_csv not read.csv
+fullDat2 <- read_csv("waterQualStanVars.csv")
+fullDat2 <- as.data.frame(fullDat2)
 
 ```
 
@@ -256,29 +261,50 @@ stageDat %<>% filter(WaterLevel>0) %>% mutate(name=as.character(name))
 
 ```
 
-```{r by15var}
+```{r by15var, eval=TRUE}
 
-fullDat2 %<>% mutate(by30=floor_date(DateTime, unit="30 min")) %>% 
+# Cond data with standardized variables rounded to nearest 15, 30, 60 min
+fullDat2 %<>% 
+  mutate(by60=floor_date(DateTime, unit="60 min")) %>% 
+  mutate(by30=floor_date(DateTime, unit="30 min")) %>% 
   mutate(by15=floor_date(DateTime, unit="15 min")) %>%
-  select(by15, by30, name, Cond, Temp, SPC, stdCond, stdSpc, stdTemp)
+  select(by15, by30, by60, DateTime, 
+         name, Cond, Temp, SPC, stdCond, stdSpc, stdTemp)
 
-stageDat %<>% mutate(by30=floor_date(DateTime, unit="30 min")) %>%
+stageDat %<>% 
+  mutate(by60=floor_date(DateTime, unit="60 min")) %>%
+  mutate(by30=floor_date(DateTime, unit="30 min")) %>%
   mutate(by15=floor_date(DateTime, unit="15 min")) %>%
-  select(by15, by30, name, WaterLevel)
+  select(by15, by30, by60, DateTime, name, WaterLevel)
 
-fullDat3 <- full_join(fullDat2, stageDat)
 
-# write_csv(fullDat3, "joined_cond_stage_height.csv")
+```
 
+```{r, eval=TRUE}
+# retain rows in both data sets (by hourly variable)
+#cond_stage_dat <- full_join(fullDat2, stageDat)
+
+setwd("~/Desktop/streamHealth/rawData/stage")
+cond_stage_dat <- readRDS("cond_stage_dat.rds")
 ```
 
 ### Water level descriptives
 
 We have observations ranging from 2015-06-18 21:15:00 to 2017-07-07 09:20:15. But not all sites were observed at all point in that range. Only Carr has measurements in 2017. 
 
+```{r waterLevelOverTime, fig.cap="Water level by site. "}
+
+ggplot(stageDat, aes(x=DateTime, y=WaterLevel, color=name)) + 
+  geom_line() + 
+  facet_grid(name ~., scales = "free_y") + 
+  labs(x="Hour", y="Water Level") + 
+  theme(legend.position="none")
+
+```
+
 ```{r stageDescriptives}
 
-obs <- stageDat %>%
+obs <- cond_stage_dat %>%
   group_by(name) %>%
   summarise(Observations=n()) %>%
   rename(Site_Name=name) %>%
@@ -301,7 +327,7 @@ The water level is highest at Carr and lowest at Trail. The standard deviation i
 
 ```{r waterLevelAll, fig.cap="Water level by site aggregated by hour (and averaged each hour). "}
 
-ggplot(stageDat, aes(x=hour(by15), y=WaterLevel, color=name)) + 
+ggplot(stageDat, aes(x=hour(DateTime), y=WaterLevel, color=name)) + 
   geom_smooth() + 
   facet_wrap(~ name,scales = "free_y") + 
   labs(x="Hour", y="Water Level") + 
@@ -322,9 +348,9 @@ gg + geom_vline(aes(xintercept=Mean),  dat, col="black") + ylab("Frequency")
 
 ```
 
-One way to standardize water level data might be to use Box Cox transformation. Box Cox test indicated that a negative power transformation would be appropriate. I can do this, but I think it may not be necessary. (Can have a chat about this later.)
+One way to standardize water level data might be to use Box Cox transformation. Box Cox test indicated that a negative power transformation would be appropriate. I can do this, but I think it may not be necessary (can have a chat about this later).
 
-```{r boxCoxStageDat, fig.cap="Box Cox test on Bear data show that a Y^(-.374) transformation will be appropriate. "}
+```{r boxCoxStageDat, fig.cap="Box Cox test on Bear data show that a Y^(-.374) transformation will be appropriate. ", eval=FALSE}
 
 # separate out by site name
 splitFull <- split(stageDat , f = stageDat$name) 
@@ -381,18 +407,18 @@ First let's just plot a chunk of the Carr time series from 2016-01-01 to 2016-02
 
 ```{r carrMonthTest, fig.cap="Water level and SPC at Carr from 2016-01-01  to 2016-02-01. Data are not standardized or transformed. ", eval=TRUE}
 
-CarrTest <- fullDat3 %>%
+CarrTest <- cond_stage_dat %>%
   filter(name=="Carr") %>%
-  subset(by15 >= "2016-01-01" & by15 <= "2016-02-01") %>%
+  subset(DateTime >= "2016-01-01" & DateTime <= "2016-02-01") %>%
   select(-name) %>%
   arrange(by15)
 
-p1 <- ggplot(CarrTest, aes(x=by15, y=WaterLevel)) + 
+p1 <- ggplot(CarrTest, aes(x=DateTime, y=WaterLevel)) + 
   geom_line() + 
   labs(title = "", axis.title.y = "") + 
   theme(legend.position="none") + xlab("")
   
-p2 <- ggplot(CarrTest, aes(x=by15, y=SPC)) + 
+p2 <- ggplot(CarrTest, aes(x=DateTime, y=SPC)) + 
   geom_line() + 
   labs(title = "", axis.title.y = "") + 
   theme(legend.position="none") + xlab("")
@@ -405,13 +431,13 @@ Clearly our data are not stationary (i.e., variables at time t are related to va
 
 ```{r carrMonthTestDiff, fig.cap="Differenced time series for water level and SPC at Carr from 2016-01-01  to 2016-02-01. ", eval=FALSE}
 
-p1 <- ggplot(CarrTest,  aes(x=by15, y=c(diff(WaterLevel), 0))) + 
+p1 <- ggplot(CarrTest,  aes(x=DateTime, y=c(diff(WaterLevel), 0))) + 
   geom_line() + 
   labs(title = "") +
   ylab("First-diff Water Level") +
   theme(legend.position="none")
   
-p2 <- ggplot(CarrTest, aes(x=by15, y=c(diff(SPC), 0))) + 
+p2 <- ggplot(CarrTest, aes(x=DateTime, y=c(diff(SPC), 0))) + 
   geom_line() + 
   labs(title = "") + 
   ylab("First-diff SPC")+
@@ -425,21 +451,44 @@ First differenced water level plot of Carr from 2016-01-01  to 2016-02-01 shows 
  
 \FloatBarrier
 
-```{r acfPlots, fig.cap="ACF plots of water level and SPC at Carr. One lag represents a 15 minute interval. ", fig.height=5}
+```{r acfPlots, fig.cap="ACF plots of first-differenced water level and SPC at Carr. One lag represents a 15 minute interval. ", fig.height=5}
 
-CarrTest %<>% select(by15, WaterLevel, SPC)
-
-CarrTest <- data.frame(CarrTest)
-
+CarrTest %<>% 
+  group_by(by15) %>% 
+  summarise(meanWat15=mean(WaterLevel), meanSPC15=mean(SPC))
+  
 par(mfrow=c(1,2))
-acf(diff(CarrTest$WaterLevel), na.action = na.pass, main="Water level", lag.max=20)
-acf(diff(CarrTest$SPC), na.action = na.pass, main="SPC", lag.max=48)
+acf(diff(CarrTest$meanWat15), na.action = na.pass, 
+    main="Water level", lag.max=180)
+acf(diff(CarrTest$meanSPC15), na.action = na.pass, 
+    main="SPC", lag.max=180)
 
 ```
 
-```{r ccfPlot, fig.cap="Cross correlation between stage height and SPC. Lags are 15 min intervals. Something seems amiss. ", eval=FALSE}
+Data for Carr during 2016-01-01  to 2016-02-01 were grouped by 15 minute chunks and then the averaged for each chunk.  
 
-ccf(diff(CarrTest$SPC), diff(CarrTest$WaterLevel), na.action = na.pass, main="", lag.max=20)
+ACF plots of first-differenced water level and SPC at Carr from 2016-01-01  to 2016-02-01 show that water level remains correlated with itself for almost two hours. SPC remains correlated with itself for about an hour. 
+
+```{r ccfPlot, fig.cap="Cross correlation between stage height and SPC. Lags are 15 min intervals. The two series are negatively correlated (-0.3) "}
+
+ccf(diff(CarrTest$meanWat15), diff(CarrTest$meanSPC15), 
+    na.action = na.pass, main="Carr 2016-01-01 to 2016-02-01",
+    lag.max=180)
+
+```
+
+#### ACF of SPC: Brooklyn, Carr, Shoal, Turkey
+
+```{r acfAll, fig.cap="ACF of all sites SPC. All time series are in 5 minutes intervals (so one lag is 5 minutes). ", fig.height=6}
+
+csList <- split(cond_stage_dat, f=cond_stage_dat$name)
+
+par(mfrow=c(2,5))
+for(i in 1:length(csList)){
+  acf(diff(csList[[i]]$SPC), 
+      main=csList[[i]]$name[1], 
+      lag.max = 12, na.action = na.pass)
+}
 
 ```
 
@@ -447,78 +496,34 @@ ccf(diff(CarrTest$SPC), diff(CarrTest$WaterLevel), na.action = na.pass, main="",
 
 Now we're interested in assessing the correlation between daily stage height signals and daily SPC for the rest of the sites in 15 minute intervals. 
 
-```{r waterHeightSignals}
+Apparently in the year from February 2015 to Feb 2016, only 4 sites had both water level and SPC taken consistently? Possibly not true, but will look at it later. 
 
-## Just getting data into the right format
+```{r ccfAll, fig.cap="CCF plots of four sites with comparable time series. Lags are 5 minute intervals. "}
 
-fullDat3 %<>% mutate(hour.min=paste0(hour(by15), ".",
-                                     stri_sub(as.character(minute(by15)/60), 3))) %>%
-  mutate(hour.min=as.numeric(hour.min))
+# omit rows with NAs (need both SPC and water level for ccf)
+cond_stage_dat2 <- cond_stage_dat %>% 
+  subset(DateTime >= "2015-02-01" & 
+           DateTime <= "2016-02-01") %>%
+  select(by15, name, SPC, WaterLevel) %>% 
+  drop_na()
 
-SPC <- fullDat3 %>%
-  ggplot(aes(hour.min, SPC, group=name)) +
-  geom_smooth() 
+csList2 <- split(cond_stage_dat2, f=cond_stage_dat2$name)
 
-SPC <- ggplot_build(SPC)$data[[1]] %>%
-  select(x, y, group) %>%
-  rename(hour.min=x, SPC=y, site=group)%>%
-  arrange(hour.min)
+par(mfrow=c(2,2), mar=c(4,4,3,1))
 
-WaterLevel <- fullDat3 %>%
-  ggplot(aes(hour.min, WaterLevel, group=name)) +
-  geom_smooth() %>%
-  arrange(hour.min)
+for(i in 1:4){
+  ccf(diff(csList2[[i]]$SPC), 
+      diff(csList2[[i]]$WaterLevel), 
+      lag.max = 24, na.action = na.pass,
+      main=csList2[[i]]$name[1])
+}
 
-WaterLevel <- ggplot_build(WaterLevel)$data[[1]] %>%
-  select(x, y, group) %>%
-  rename(hour.min=x, WaterLevel=y, site=group) %>%
-  arrange(hour.min)
 
 ```
-
-```{r}
-
-spc.site1 <- filter(SPC, site==1)
-wat.site1 <- filter(WaterLevel, site==1)  
-
-ccf(diff(wat.site1$WaterLevel), diff(spc.site1$SPC), na.action = na.pass, lag=12)
-### THIS JUST LOOKS WRONG IDK
-```
-
-
-```{r scatterTurkey, fig.cap="Scatterplots of Turkey yt (SPC) versus xt+h (water) for negative h from 0 back to 4 ", eval=FALSE}
-
-lag2.plot(diff(splitFull[[4]]$hourWater), diff(splitFull[[4]]$hourSPC), 3)
-          
-```
-
-#### Next steps/questions
-
-### Questions for Emily:
-
-_The probes for conductivity and for water level took measurements at 5 minute intervals but at different 5 minute intervals._ 
-
-I grouped measurements hourly for now. We might want to do 15 minute intervals, or 20 minutes to see the changes that we want to. How fast do the signals wash away following rain events?
-
-* Answer from Seth & Emily was yes, we should do less than hourly intervals
-
-_Some negative water level values, exclude from analysis?_
-
-For now... we should ignore negative values. That should just mean that the sensor came out of the water at some point.
-
-* This is ok for now
-
-_Should we be accounting for rainfall when calculating ccf between time series?_
-
-Like perhaps studying the response post-rain event separately? Get a list of rain fall in Athens, subset by those days, and study response after that. How would they differ? 
-
-* Perhaps, 
 
 ## Next steps
 
-* Make plots of daily stage height similar to the normalized SPC plots
-* Do a cross correlation of SPC and stage with 15 min intervals
-* Look at precipitation with stage/SPC
+* Look at days with and without precipitation separately.
 
 
 
