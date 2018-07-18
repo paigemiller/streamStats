@@ -1,7 +1,7 @@
 ---
 title: 'Analysis: Part II'
 author: "Paige Miller"
-date: "11/3/2017"
+date: "7/18/2018"
 output:
   pdf_document: default
   html_document: default
@@ -82,51 +82,34 @@ multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
 
 ## 4. Cross-correlation between stage height and conductivity
 
-We first excluded known probe errors. Joined with conductivity data by date. For now, I only have water level for: 
-
-* Brooklyn
-* Carr
-* Tanyard
-* Trail
-* Shoal 
-* Turkey
-
-Missing for: 
-
-* Brick
-* McNutt
-* Tallassee
-* Big
+We first excluded known probe errors. Joined with conductivity data by date. 
 
 ```{r loadCondDat}
 
 # read data from analysis.Rmd in the analysis folder
 # has to be read_csv not read.csv
-fullDat2 <- read_csv("waterQualStanVars.csv")
+fullDat2 <- read_csv("~/Documents/streamHealth/rawData/conductivity/waterQualStanVars.csv")
 fullDat2 <- as.data.frame(fullDat2)
 
 ```
 
 ```{r loadStageDat, message=FALSE, warning=FALSE}
 
-setwd("~/Desktop/streamHealth/rawData/stage")
+setwd("~/Documents/streamHealth/rawData/stage")
 
-brooklynStage   <- s1  <-  read_csv("Stage_brooklyn.all2.csv") # has water level
-carrStage       <- s2  <-  read_csv("Stage_carr.all2.csv")  # has water level
+brooklynStage   <- s1  <-  read_csv("stage_brooklyn_final.csv") # has water level
+carrStage       <- s2  <-  read_csv("stage_carr_final.csv")  # has water level
 
-bearStage <- s3  <-  read_csv("Stage_bear.all2.csv")  # has water level
+bearStage <- s3  <-  read_csv("stage_bear_final.csv")  # has water level
 
-# brickStage      <- s4  <-  read_csv("Stage_brickyard.csv") # does NOT have water level
-# mcnuttStage     <- s5  <-  read_csv("Stage_mcnutt.csv") # does NOT have water level
-# tallasseeStage  <- s6  <- read_csv("Stage_tallassee.csv") # does NOT have water level
+brickStage      <- s4  <-  read_csv("stage_brickyard.csv") 
+mcnuttStage     <- s5  <-  read_csv("stage_mcnutt.csv") 
+tallasseeStage  <- s6  <- read_csv("stage_tallassee.csv") 
 
-tanyardStage    <- s7  <- read_csv("Stage_tanyard.all2.csv")  # has water level
-trailStage      <- s8  <- read_csv("Stage_trail.all2.csv") # has water level
-shoalStage      <- s9  <- read_csv("Stage_shoal.all2.csv") # has water level
-turkeyStage     <- s10 <- read_csv("Stage_turkey.all2.csv") # has water level
-
-# bigStage       <- s11  <-  read_csv("Stage_big.csv") # does NOT have water level
-
+tanyardStage    <- s7  <- read_csv("stage_tanyard_final.csv")  # has water level
+trailStage      <- s8  <- read_csv("stage_trail_final.csv") # has water level
+shoalStage      <- s9  <- read_csv("stage_shoal_final.csv") # has water level
+turkeyStage     <- s10 <- read_csv("stage_turkey_final.csv") # has water level
 ```
 
 ```{r combineStageDat}
@@ -154,44 +137,38 @@ s3  %<>% mutate(DateTime=as.POSIXct(DateTime)) %>%
   mutate(day=floor_date(DateTime, unit="day")) %>%
   mutate(month=floor_date(DateTime, unit="month")) %>%
   mutate(quarter=floor_date(DateTime, unit="quarter")) %>%
-  cbind(site=2) %>% cbind(name="Bear") %>%
+  cbind(site=3) %>% cbind(name="Bear") %>%
   mutate(Exclude = ifelse(is.na(Exclude),0,Exclude)) %>%
   filter(Exclude==0)
 
 
-# Datetime is in an funny format that we needed to fix 
-# s4  %<>% mutate(DateTime=as.POSIXct(strptime(DateTime,
-#                                              format='%m/%d/%Y %H:%M', 
-#                                              tz="UTC"))) %>%
-#   rename(WaterLevel=Actual_depth) %>%
-#   mutate(day=floor_date(DateTime, unit="day")) %>%
-#   mutate(month=floor_date(DateTime, unit="month")) %>%
-#   mutate(quarter=floor_date(DateTime, unit="quarter")) %>%
-#   cbind(site=4) %>% cbind(name="Brickyard")%>%
-#   mutate(Exclude = ifelse(is.na(Exclude),0,Exclude)) %>%
-#   filter(Exclude==0)
-# 
-# s5  %<>% mutate(DateTime=as.POSIXct(strptime(DateTime,
-#                                              format='%m/%d/%Y %H:%M', 
-#                                              tz="UTC"))) %>%
-#   rename(WaterLevel=Actual_depth) %>%
-#   mutate(day=floor_date(DateTime, unit="day")) %>%
-#   mutate(month=floor_date(DateTime, unit="month")) %>%
-#   mutate(quarter=floor_date(DateTime, unit="quarter")) %>%
-#   cbind(site=5) %>% cbind(name="McNutt")%>%
-#   mutate(Exclude = ifelse(is.na(Exclude),0,Exclude)) %>%
-#   filter(Exclude==0)
-# 
-# s6  %<>% mutate(DateTime=as.POSIXct(strptime(DateTime,
-#                                              format='%m/%d/%Y %H:%M', 
-#                                              tz="UTC"))) %>%
-#   rename(WaterLevel=Actual_depth) %>%
-#   mutate(day=floor_date(DateTime, unit="day")) %>%
-#   mutate(month=floor_date(DateTime, unit="month")) %>%
-#   mutate(quarter=floor_date(DateTime, unit="quarter")) %>%
-#   cbind(site=6) %>% cbind(name="Tallassee")%>%
-#   mutate(Exclude = ifelse(is.na(Exclude),0,Exclude)) %>%
-#   filter(Exclude==0)
+s4  %<>% 
+  mutate(DateTime=as.POSIXct(DateTime, format = "%m/%d/%Y %H:%M")) %>%
+  mutate(hour_of_day=floor_date(DateTime, unit="hour")) %>%
+  mutate(day=floor_date(DateTime, unit="day")) %>%
+  mutate(month=floor_date(DateTime, unit="month")) %>%
+  mutate(quarter=floor_date(DateTime, unit="quarter")) %>%
+  cbind(site=4) %>% cbind(name="Brickyard")%>%
+  mutate(Exclude = ifelse(is.na(Exclude),0,Exclude)) %>%
+  filter(Exclude==0)
+
+s5  %<>%   mutate(DateTime=as.POSIXct(DateTime, format = "%m/%d/%Y %H:%M")) %>%
+  mutate(hour_of_day=floor_date(DateTime, unit="hour")) %>%
+  mutate(day=floor_date(DateTime, unit="day")) %>%
+  mutate(month=floor_date(DateTime, unit="month")) %>%
+  mutate(quarter=floor_date(DateTime, unit="quarter")) %>%
+  cbind(site=5) %>% cbind(name="McNutt")%>%
+  mutate(Exclude = ifelse(is.na(Exclude),0,Exclude)) %>%
+  filter(Exclude==0)
+
+s6  %<>%   mutate(DateTime=as.POSIXct(DateTime, format = "%m/%d/%Y %H:%M")) %>%
+    mutate(hour_of_day=floor_date(DateTime, unit="hour")) %>%
+  mutate(day=floor_date(DateTime, unit="day")) %>%
+  mutate(month=floor_date(DateTime, unit="month")) %>%
+  mutate(quarter=floor_date(DateTime, unit="quarter")) %>%
+  cbind(site=6) %>% cbind(name="Tallassee")%>%
+  mutate(Exclude = ifelse(is.na(Exclude),0,Exclude)) %>%
+  filter(Exclude==0)
 
 s7  %<>% mutate(DateTime=as.POSIXct(DateTime)) %>%
   mutate(hour_of_day=floor_date(DateTime, unit="hour")) %>%
@@ -229,30 +206,18 @@ s10  %<>% mutate(DateTime=as.POSIXct(DateTime)) %>%
   mutate(Exclude = ifelse(is.na(Exclude),0,Exclude)) %>%
   filter(Exclude==0)
 
-# s11  %<>% mutate(DateTime=gsub("/", "-", DateTime)) %>%
-#   mutate(DateTime=as.POSIXct(DateTime)) %>%
-#   rename(WaterLevel=Actual_depth) %>%
-#   mutate(day=floor_date(DateTime, unit="day")) %>%
-#   mutate(month=floor_date(DateTime, unit="month")) %>%
-#   mutate(quarter=floor_date(DateTime, unit="quarter")) %>%
-#   cbind(site=11) %>% cbind(name="Big")%>%
-#   mutate(Exclude = ifelse(is.na(Exclude),0,Exclude)) %>%
-#   filter(Exclude==0)
+cs <- c("name", "site", "DateTime", "Abs.Pres", "Temp", "WaterLevel", "Barom.Pres", "day", "hour_of_day")
 
-rows <- c("name", "site", "DateTime", "Abs.Pres", "Temp", "WaterLevel", "Barom.Pres", "day", "hour_of_day")
-
-stageDat <- rbind(s1  %>% subset(select=rows), 
-                 s2  %>% subset(select=rows),
-                 s3  %>% subset(select=rows),
-                 # s4  %>% subset(select=rows),
-                 # s5  %>% subset(select=rows),
-                 # s6  %>% subset(select=rows),
-                 s7  %>% subset(select=rows),
-                 s8  %>% subset(select=rows),
-                 s9  %>% subset(select=rows),
-                 s10  %>% subset(select=rows)#, 
-                 #s11  %>% subset(select=rows)
-                 )
+stageDat <- rbind(select(s1, cs), 
+                 select(s2, cs), 
+                 select(s3, cs), 
+                 select(s4, cs), 
+                 select(s5, cs), 
+                 select(s6, cs), 
+                 select(s7, cs), 
+                 select(s8, cs), 
+                 select(s9, cs), 
+                 select(s10, cs))
 
 kable(filter(stageDat, WaterLevel<0) %>%
   select(name, DateTime, WaterLevel), caption = "Instances of negative water level observations removed prior to analysis. ")
@@ -261,6 +226,8 @@ stageDat %<>% filter(WaterLevel>0) %>% mutate(name=as.character(name))
 
 ```
 
+I've aggregated time series into 15 minute intervals would be big enough to ensure that 
+
 ```{r by15var, eval=TRUE}
 
 # Cond data with standardized variables rounded to nearest 15, 30, 60 min
@@ -268,36 +235,39 @@ fullDat2 %<>%
   mutate(by60=floor_date(DateTime, unit="60 min")) %>% 
   mutate(by30=floor_date(DateTime, unit="30 min")) %>% 
   mutate(by15=floor_date(DateTime, unit="15 min")) %>%
-  select(by15, by30, by60, DateTime, 
+  mutate(by10=floor_date(DateTime, unit="10 min")) %>%
+  select(by10, by15, by30, by60, DateTime, 
          name, Cond, Temp, SPC, stdCond, stdSpc, stdTemp)
 
 stageDat %<>% 
   mutate(by60=floor_date(DateTime, unit="60 min")) %>%
   mutate(by30=floor_date(DateTime, unit="30 min")) %>%
   mutate(by15=floor_date(DateTime, unit="15 min")) %>%
-  select(by15, by30, by60, DateTime, name, WaterLevel)
+  mutate(by10=floor_date(DateTime, unit="10 min")) %>%
+  select(by10, by15, by30, by60, DateTime, name, WaterLevel)
 
 
 ```
 
 ```{r, eval=TRUE}
 # retain rows in both data sets (by hourly variable)
-#cond_stage_dat <- full_join(fullDat2, stageDat)
+cond_stage_dat <- full_join(fullDat2, stageDat)
 
-setwd("~/Desktop/streamHealth/rawData/stage")
-cond_stage_dat <- readRDS("cond_stage_dat.rds")
+# setwd("~/Documents/streamHealth/rawData/stage")
+#write.csv(cond_stage_dat, "cond_stage_dat.csv")
+# cond_stage_dat <- read_csv("cond_stage_dat.csv")
 ```
 
 ### Water level descriptives
 
-We have observations ranging from 2015-06-18 21:15:00 to 2017-07-07 09:20:15. But not all sites were observed at all point in that range. Only Carr has measurements in 2017. 
+We have observations ranging from 2015-06-18 to 2017-12-30. But not all sites were observed at all points in that range. There's a chunk of time in 2015 and 2016 with some missing data.  Carr has a chunk of missing data in early 2017 and Bear has a chunk of missing data in 2016. We don't have 2017 data from Brickyeard, McNutt, or Tallassee. 
 
 ```{r waterLevelOverTime, fig.cap="Water level by site. "}
 
-ggplot(stageDat, aes(x=DateTime, y=WaterLevel, color=name)) + 
-  geom_line() + 
+ggplot(stageDat, aes(x=by30, y=WaterLevel, color=name)) + 
+  geom_point(size=.15) + 
   facet_grid(name ~., scales = "free_y") + 
-  labs(x="Hour", y="Water Level") + 
+  labs(x="", y="Water Level") + 
   theme(legend.position="none")
 
 ```
@@ -323,7 +293,7 @@ kable(dStats,
 
 ```
 
-The water level is highest at Carr and lowest at Trail. The standard deviation in water level was highest at Turkey and lowest at Bear. 
+The water level is highest at Carr and lowest at Tallassee. The standard deviation in water level was highest at Turkey/Trail and lowest at Tallassee. 
 
 ```{r waterLevelAll, fig.cap="Water level by site aggregated by hour (and averaged each hour). "}
 
@@ -335,7 +305,7 @@ ggplot(stageDat, aes(x=hour(DateTime), y=WaterLevel, color=name)) +
 
 ```
 
-```{r stageHistograms, fig.cap="Since water level distributions are heavily right skewed (mean pulled to the right), normalizing the curves is causing there to be negative values. Black lines represent means.  "}
+```{r stageHistograms, fig.cap="Since water level distributions are heavily right skewed (mean pulled to the right) and not unimodal, normalizing the curves is causing there to be negative values. Black lines represent means.  "}
 
 gg<-ggplot(stageDat, aes(x=WaterLevel, fill=name)) + 
   geom_histogram(binwidth = .05) + 
@@ -348,7 +318,7 @@ gg + geom_vline(aes(xintercept=Mean),  dat, col="black") + ylab("Frequency")
 
 ```
 
-One way to standardize water level data might be to use Box Cox transformation. Box Cox test indicated that a negative power transformation would be appropriate. I can do this, but I think it may not be necessary (can have a chat about this later).
+In conductivity analysis, we standized curves to capture differences in stream SPC signals. We could do this here except water level distributions are all multi-modal and those different peaks I think are meaningful. 
 
 ```{r boxCoxStageDat, fig.cap="Box Cox test on Bear data show that a Y^(-.374) transformation will be appropriate. ", eval=FALSE}
 
@@ -356,7 +326,7 @@ One way to standardize water level data might be to use Box Cox transformation. 
 splitFull <- split(stageDat , f = stageDat$name) 
 
 test=splitFull$Bear$WaterLevel
-BoxCox(test)
+#BoxCox(test)
 
 # add a column with transfomred data to each df
 splitFull <- lapply(splitFull, 
@@ -364,8 +334,8 @@ splitFull <- lapply(splitFull,
 
 # add a column with normalized transformed water level to each df
 splitFull <- lapply(splitFull, 
-               function(x){mutate(x,stdWater=(transformed-mean(transformed,
-                                                               na.rm=T))/sd(transformed,
+               function(x){mutate(x,stdWater=(WaterLevel-mean(WaterLevel,
+                                                               na.rm=T))/sd(WaterLevel,
                                                                             na.rm=T))})
 
 
@@ -376,8 +346,8 @@ stageDat <- ldply(splitFull, data.frame)
 ```{r stdWaterPlots, eval=FALSE}
 
 # not running for now
-ggplot(stageDat, aes(x=hour(by15), y=stdWater, color=name)) + 
-  geom_smooth() + 
+ggplot(stageDat, aes(x=hour(DateTime), y=stdWater, color=name)) + 
+  geom_smooth() + geom_point(size=.05, color="black")+
   facet_wrap(~ name,scales = "free_y") + 
   labs(x="Hour", y="Water Level") + 
   theme(legend.position="none")
@@ -388,7 +358,7 @@ gg<-ggplot(stageDat, aes(x=stdWater, fill=name)) +
   theme(legend.position="none") + 
   labs(title="Distribution of water levels by site")
 
-dat <- ddply(stageDat, "name", summarize, Mean=mean(WaterLevel))
+dat <- ddply(stageDat, "name", summarize, Mean=mean(stdWater))
 gg + geom_vline(aes(xintercept=Mean),  dat, col="black") + ylab("Frequency")
 
 ```
@@ -411,7 +381,7 @@ CarrTest <- cond_stage_dat %>%
   filter(name=="Carr") %>%
   subset(DateTime >= "2016-01-01" & DateTime <= "2016-02-01") %>%
   select(-name) %>%
-  arrange(by15)
+  arrange(by10)
 
 p1 <- ggplot(CarrTest, aes(x=DateTime, y=WaterLevel)) + 
   geom_line() + 
@@ -451,79 +421,298 @@ First differenced water level plot of Carr from 2016-01-01  to 2016-02-01 shows 
  
 \FloatBarrier
 
-```{r acfPlots, fig.cap="ACF plots of first-differenced water level and SPC at Carr. One lag represents a 15 minute interval. ", fig.height=5}
+```{r acfPlots, fig.cap="ACF plots of first-differenced water level and SPC at Carr. One lag represents a 15 minute interval and lag 9 represents 1.5 hours later. ", fig.height=5}
 
 CarrTest %<>% 
-  group_by(by15) %>% 
-  summarise(meanWat15=mean(WaterLevel), meanSPC15=mean(SPC))
+  group_by(by10) %>% 
+  summarise(meanWat10=mean(WaterLevel), meanSPC10=mean(SPC))
   
 par(mfrow=c(1,2))
-acf(diff(CarrTest$meanWat15), na.action = na.pass, 
-    main="Water level", lag.max=180)
-acf(diff(CarrTest$meanSPC15), na.action = na.pass, 
-    main="SPC", lag.max=180)
+acf(diff(CarrTest$meanWat10), na.action = na.pass, 
+    main="Water level", lag.max=9)
+acf(diff(CarrTest$meanSPC10), na.action = na.pass, 
+    main="SPC", lag.max=9)
 
 ```
 
-Data for Carr during 2016-01-01  to 2016-02-01 were grouped by 15 minute chunks and then the averaged for each chunk.  
+Data for Carr during 2016-01-01  to 2016-02-01 were grouped by 10 minute chunks and then the averaged for each chunk.  
 
 ACF plots of first-differenced water level and SPC at Carr from 2016-01-01  to 2016-02-01 show that water level remains correlated with itself for almost two hours. SPC remains correlated with itself for about an hour. 
 
-```{r ccfPlot, fig.cap="Cross correlation between stage height and SPC. Lags are 15 min intervals. The two series are negatively correlated (-0.3) "}
+```{r ccfPlot, fig.cap="Cross correlation between stage height and SPC. Lags are 10 min intervals. The two series are negatively correlated (-0.3) "}
 
-ccf(diff(CarrTest$meanWat15), diff(CarrTest$meanSPC15), 
+ccf(diff(CarrTest$meanSPC10), diff(CarrTest$meanWat10), 
     na.action = na.pass, main="Carr 2016-01-01 to 2016-02-01",
-    lag.max=180)
+    lag.max=8)
 
 ```
 
-#### ACF of SPC: Brooklyn, Carr, Shoal, Turkey
+The two time series are negatively correlated ($$\rho = ~0.3$$) but the fact that __SPC should lag water level__ is not easily picked up from this plot. 
 
-```{r acfAll, fig.cap="ACF of all sites SPC. All time series are in 5 minutes intervals (so one lag is 5 minutes). ", fig.height=6}
+\FloatBarrier
 
-csList <- split(cond_stage_dat, f=cond_stage_dat$name)
+#### ACF of SPC
+
+```{r acfAll, fig.cap="ACF of all sites SPC. All time series are in 10 minutes intervals (so one lag is 10 minutes and lag 9 represents 1.5 hour lag). ", fig.height=6}
+
+df <- cond_stage_dat %>% group_by(by10, name) %>%
+  summarise(mWaterLevel=mean(WaterLevel, na.rm=TRUE)) 
+
+csList <- split(df, f=df$name)
 
 par(mfrow=c(2,5))
 for(i in 1:length(csList)){
-  acf(diff(csList[[i]]$SPC), 
+  acf(diff(csList[[i]]$mWaterLevel), 
       main=csList[[i]]$name[1], 
-      lag.max = 12, na.action = na.pass)
+      lag.max = 9, na.action = na.pass)
 }
 
 ```
+
+ACF values indicate that most time series are correlated with themselves up to about 2 hours. This potentially means that regardless of what was going on about 2 hours ago, streams generally will return to normal water level after about 2 hours (how long do rain storms last? probably about 2 hours or less?). 
+
+It seems that McNutt, Brickyard, Trail, and Turkey may not return to normal levels after 2 hours (they may take longer).
+
+\FloatBarrier
 
 #### Cross correlation of water level and SPC: all sites
 
-Now we're interested in assessing the correlation between daily stage height signals and daily SPC for the rest of the sites in 15 minute intervals. 
+Now we're interested in assessing the correlation between daily stage height signals and daily SPC for the rest of the sites in 10 minute intervals. 
 
-Apparently in the year from February 2015 to Feb 2016, only 4 sites had both water level and SPC taken consistently? Possibly not true, but will look at it later. 
+We're going to focus on CCF analyses for different sites according to when data were collected.  
 
-```{r ccfAll, fig.cap="CCF plots of four sites with comparable time series. Lags are 5 minute intervals. "}
+```{r}
 
-# omit rows with NAs (need both SPC and water level for ccf)
-cond_stage_dat2 <- cond_stage_dat %>% 
-  subset(DateTime >= "2015-02-01" & 
-           DateTime <= "2016-02-01") %>%
-  select(by15, name, SPC, WaterLevel) %>% 
+df <- data.frame(site=c("Brickyard",
+                          "Carr",
+                         "McNutt", 
+                         "Tallassee",
+                        "Turkey",
+                        "Bear",
+                        "Brooklyn",
+                        "Shoal",
+                        "Tanyard",
+                        "Trail"
+                        ),
+                 year=c(2015,2015,2015,2015,
+                        2015,2017,2017,2017,2017,2017))
+
+kable(df, caption="Sites were analyzed during the months of Oct-Dec of either 2015 or 2017 depending on when data were continuously collected. ")
+
+```
+
+
+```{r}
+# selecting data for ccf plots 
+# had some issues getting the data to behave so here's a big mess of code
+
+brick <- cond_stage_dat %>%
+  filter(name == "Brickyard") %>%
+  filter(year(DateTime)==2015) %>%
+  filter(month(DateTime) %in% seq(9,12)) %>%
+  select(by10, name, SPC, WaterLevel) %>% 
+  drop_na() %>% arrange(by10)
+mcnutt <- cond_stage_dat %>%
+  filter(name == "McNutt") %>%
+  filter(year(DateTime)==2015) %>%
+  filter(month(DateTime) %in% seq(9,12)) %>%
+  select(by10, name, SPC, WaterLevel) %>% 
+  drop_na() %>% arrange(by10)
+tallas <- cond_stage_dat %>%
+  filter(name == "Tallassee") %>%
+  filter(year(DateTime)==2015) %>%
+  filter(month(DateTime) %in% seq(9,12)) %>%
+  select(by10, name, SPC, WaterLevel) %>% 
+  drop_na() %>% arrange(by10)
+carr <- cond_stage_dat %>%
+  filter(name == "Carr") %>%
+  filter(year(DateTime)==2015) %>%
+  filter(month(DateTime) %in% seq(9,12)) %>%
+  select(by10, name, SPC, WaterLevel) %>% 
+  drop_na() %>% arrange(by10)
+
+bear <- cond_stage_dat %>%
+  filter(name == "Bear") %>%
+  filter(year(DateTime)==2017) %>%
+  filter(month(DateTime) %in% seq(9,12)) %>%
+  select(by10, name, SPC, WaterLevel) %>% 
+  group_by(by10, name) %>%
+  summarise(SPC=mean(SPC, na.rm = TRUE)) %>%
   drop_na()
+bear2 <- cond_stage_dat %>%
+  filter(name == "Bear") %>%
+  filter(year(DateTime)==2017) %>%
+  filter(month(DateTime) %in% seq(9,12)) %>%
+  select(by10, name, SPC, WaterLevel) %>% 
+  group_by(by10, name) %>%
+  summarise(WaterLevel=mean(WaterLevel, na.rm = TRUE)) %>%
+  drop_na()
+bear <- full_join(bear, bear2, by=c("by10", "name")) %>% 
+  drop_na() %>% arrange(by10)
 
-csList2 <- split(cond_stage_dat2, f=cond_stage_dat2$name)
+brook <- cond_stage_dat %>%
+  filter(name == "Brooklyn") %>%
+  filter(year(DateTime)==2017) %>%
+  filter(month(DateTime) %in% seq(9,12)) %>%
+  select(by10, name, SPC, WaterLevel) %>% 
+  group_by(by10, name) %>%
+  summarise(SPC=mean(SPC, na.rm = TRUE)) %>%
+  drop_na()
+brook2 <- cond_stage_dat %>%
+  filter(name == "Brooklyn") %>%
+  filter(year(DateTime)==2017) %>%
+  filter(month(DateTime) %in% seq(9,12)) %>%
+  select(by10, name, SPC, WaterLevel) %>% 
+  group_by(by10, name) %>%
+  summarise(WaterLevel=mean(WaterLevel, na.rm = TRUE)) %>%
+  drop_na()
+brook <- full_join(brook, brook2, by=c("by10", "name")) %>%
+  drop_na() %>% arrange(by10)
 
-par(mfrow=c(2,2), mar=c(4,4,3,1))
+shoal <- cond_stage_dat %>%
+  filter(name == "Shoal") %>%
+  filter(year(DateTime)==2017) %>%
+  filter(month(DateTime) %in% seq(9,12)) %>%
+  select(by10, name, SPC, WaterLevel) %>% 
+  group_by(by10, name) %>%
+  summarise(SPC=mean(SPC, na.rm = TRUE)) %>%
+  drop_na()
+shoal2 <- cond_stage_dat %>%
+  filter(name == "Shoal") %>%
+  filter(year(DateTime)==2017) %>%
+  filter(month(DateTime) %in% seq(9,12)) %>%
+  select(by10, name, SPC, WaterLevel) %>% 
+  group_by(by10, name) %>%
+  summarise(WaterLevel=mean(WaterLevel, na.rm = TRUE)) %>%
+  drop_na()
+shoal <- full_join(shoal, shoal2, by=c("by10", "name")) %>%
+  drop_na() %>% arrange(by10)
 
-for(i in 1:4){
-  ccf(diff(csList2[[i]]$SPC), 
-      diff(csList2[[i]]$WaterLevel), 
-      lag.max = 24, na.action = na.pass,
-      main=csList2[[i]]$name[1])
-}
+tanya <- cond_stage_dat %>%
+  filter(name == "Tanyard") %>%
+  filter(year(DateTime)==2017) %>%
+  filter(month(DateTime) %in% seq(9,12)) %>%
+  select(by10, name, SPC, WaterLevel) %>% 
+  group_by(by10, name) %>%
+  summarise(SPC=mean(SPC, na.rm = TRUE)) %>%
+  drop_na()
+tanya2 <- cond_stage_dat %>%
+  filter(name == "Tanyard") %>%
+  filter(year(DateTime)==2017) %>%
+  filter(month(DateTime) %in% seq(9,12)) %>%
+  select(by10, name, SPC, WaterLevel) %>% 
+  group_by(by10, name) %>%
+  summarise(WaterLevel=mean(WaterLevel, na.rm = TRUE)) %>%
+  drop_na()
+tanya <- full_join(tanya, tanya2, by=c("by10", "name")) %>%
+  drop_na() %>% arrange(by10)
+
+trail <- cond_stage_dat %>%
+  filter(name == "Trail") %>%
+  filter(year(DateTime)==2017) %>%
+  filter(month(DateTime) %in% seq(9,12)) %>%
+  select(by10, name, SPC, WaterLevel) %>% 
+  group_by(by10, name) %>%
+  summarise(SPC=mean(SPC, na.rm = TRUE)) %>%
+  drop_na()
+trail2 <- cond_stage_dat %>%
+  filter(name == "Trail") %>%
+  filter(year(DateTime)==2017) %>%
+  filter(month(DateTime) %in% seq(9,12)) %>%
+  select(by10, name, SPC, WaterLevel) %>% 
+  group_by(by10, name) %>%
+  summarise(WaterLevel=mean(WaterLevel, na.rm = TRUE)) %>%
+  drop_na()
+trail <- full_join(trail, trail2, by=c("by10", "name")) %>%
+  drop_na() %>% arrange(by10)
+ 
+turk <- cond_stage_dat %>%
+  filter(name == "Turkey") %>%
+  filter(year(DateTime)==2015) %>%
+  filter(month(DateTime) %in% seq(9,12)) %>%
+  select(by10, name, SPC, WaterLevel) %>% 
+  group_by(by10, name) %>%
+  summarise(SPC=mean(SPC, na.rm = TRUE)) %>%
+  drop_na()
+turk2 <- cond_stage_dat %>%
+  filter(name == "Turkey") %>%
+  filter(year(DateTime)==2015) %>%
+  filter(month(DateTime) %in% seq(9,12)) %>%
+  select(by10, name, SPC, WaterLevel) %>% 
+  group_by(by10, name) %>%
+  summarise(WaterLevel=mean(WaterLevel, na.rm = TRUE)) %>%
+  drop_na()
+turk <- full_join(turk, turk2, by=c("by10", "name")) %>%
+  drop_na() %>% arrange(by10)
 
 
 ```
 
-## Next steps
+```{r timeAll, fig.cap="Time series of all sites from Oct-Dec of either 2015 of 2017. Blue lines show water levels and black lines show SPC data. "}
+## plot function
+plot_spc_wat <- function(dat, dts){
+  par(mar=c(3,3,2,1))
+  plot(dat$by10, dat$WaterLevel, type="l", xlab="", col="blue", 
+       xlim=dts)
+  mtext(paste(dat$name[1], year(dat$by10)[1]))
+  par(mar=c(5,3,0,1))
+  plot(dat$by10, dat$SPC, type="l", xlab="", xlim=dts)
 
-* Look at days with and without precipitation separately.
+}
+
+layout(matrix(seq(1,20), nrow=4))
+dts2015 <- c(as.POSIXct("2015-09-01 00:00:00 UTC" ),
+           as.POSIXct("2015-12-31 23:45:00 UTC"))
+plot_spc_wat(brick, dts2015)
+plot_spc_wat(carr, dts2015)
+plot_spc_wat(mcnutt, dts2015)
+plot_spc_wat(tallas, dts2015)
+plot_spc_wat(turk, dts2015)
+dts2017 <- c(as.POSIXct("2017-09-01 00:00:00 UTC" ),
+           as.POSIXct("2017-12-31 23:45:00 UTC"))
+plot_spc_wat(bear, dts2017)
+plot_spc_wat(brook, dts2017)
+plot_spc_wat(shoal, dts2017)
+plot_spc_wat(tanya, dts2017)
+plot_spc_wat(trail, dts2017)
+
+```
 
 
+```{r ccfAll, fig.cap="CCF plots for all sites. The time series evalulated in the top row of sites came from 2015 and the bottom row from 2017. Time series are aggregated into 10 minute intervals. Maximum lags shown are +/- 9 (+/- 1.5 hours).  There is some evidence that maybe these two time periods are not comparable?  "}
+## 2015 analysis
 
+df_2015 <- bind_rows(brick, carr, mcnutt, tallas, turk)
+df_2017 <- bind_rows(bear,  brook, shoal, tanya, trail)
+
+s2015 <- split(df_2015, f=df_2015$name)
+s2017 <- split(df_2017, f=df_2017$name)
+
+par(mfrow=c(2,5), mar=c(2,2,2,1))
+cVal <- c()
+for(i in 1:5){
+  tsCcf <- ccf(diff(s2015[[i]]$SPC), 
+      diff(s2015[[i]]$WaterLevel), 
+      lag.max = 9, na.action = na.pass,
+      main="", ylim=c(-.3, .1))
+  mtext(s2015[[i]]$name[1], line=-.1)
+  cVal[i] <- round(tsCcf$acf[tsCcf$lag==0], digits=2)
+  mtext(side=1, at=-7, line=-1, expression(rho), cex=.8)
+  mtext(side=1, at=-2, line=-1, paste0("=", cVal[i]), cex=.8)
+}
+for(i in 1:5){
+  tsCcf <- ccf(diff(s2017[[i]]$SPC), 
+      diff(s2017[[i]]$WaterLevel), 
+      lag.max = 9, na.action = na.pass,
+      main="", ylim=c(-.3, .1))
+  mtext(s2017[[i]]$name[1], line=-.1)
+  cVal[i+5] <- round(tsCcf$acf[tsCcf$lag==0], digits=2)
+  mtext(side=1, at=-7, line=-1, expression(rho), cex=.8)
+  mtext(side=1, at=-2, line=-1, paste0("=", cVal[i+5]), cex=.8)
+}
+
+```
+
+We can see that Carr, Brooklyn, Tanyard, and Trail seem to show less resilience (slower at returning to normal) than Brickyard, Mcnutt, Tallassee, and Turkey. Bear and Shoal seem to be somewhere in the middle. 
+
+These results should be confirmed with another set of dates. Which dates should we look at? 
