@@ -201,10 +201,13 @@ seas <- data.frame(monthVal=seq(1,12),
 
 
 fullDat %<>% full_join(seas, by="monthVal")
+saveRDS(fullDat, "merged-cond-data.RDS")
 
 ```
 
 ```{r tables}
+
+
 obs <- fullDat %>%
   group_by(name) %>%
   tally()
